@@ -117,21 +117,21 @@ fromString x =
     case String.toList x of
         [] -> Just (fromInt 0)
         '-'::xs ->
-            case fromString' xs of
+            case fromString_ xs of
                 Nothing -> Nothing
                 (Just a) -> Just (Integer (Negative, a))
         '+'::xs ->
-            case fromString' xs of
+            case fromString_ xs of
                 Nothing -> Nothing
                 (Just a) -> Just (Integer (Positive, a))
         xs ->
-            case fromString' xs of
+            case fromString_ xs of
                 Nothing -> Nothing
                 (Just a) -> Just (Integer (Positive, a))
 
 
-fromString' : List Char -> Maybe Magnitude
-fromString' x =
+fromString_ : List Char -> Maybe Magnitude
+fromString_ x =
     if not <| List.all Char.isDigit x
     then Nothing
     else
@@ -175,32 +175,32 @@ type MagnitudePair = MagnitudePair (List (Digit, Digit))
 
 sameSize : Magnitude -> Magnitude -> MagnitudePair
 sameSize (Magnitude a) (Magnitude b) =
-    let sameSize' a b =
+    let sameSize_ a b =
         case (a, b) of
             ([], []) -> []
             (a::xa, b::xb) ->
-                (a, b) :: sameSize' xa xb
+                (a, b) :: sameSize_ xa xb
             (a::xa, []) ->
-                (a, 0) :: sameSize' xa []
+                (a, 0) :: sameSize_ xa []
             ([], b::xb) ->
-                (0, b) :: sameSize' [] xb
+                (0, b) :: sameSize_ [] xb
     in
-    MagnitudePair (sameSize' a b)
+    MagnitudePair (sameSize_ a b)
 
 
-sameSize' : MagnitudeNotNormalised -> MagnitudeNotNormalised -> MagnitudePair
-sameSize' (MagnitudeNotNormalised a) (MagnitudeNotNormalised b) =
-    let sameSize'' a b =
+sameSize_ : MagnitudeNotNormalised -> MagnitudeNotNormalised -> MagnitudePair
+sameSize_ (MagnitudeNotNormalised a) (MagnitudeNotNormalised b) =
+    let sameSize__ a b =
         case (a, b) of
             ([], []) -> []
             (a::xa, b::xb) ->
-                (a, b) :: sameSize'' xa xb
+                (a, b) :: sameSize__ xa xb
             (a::xa, []) ->
-                (a, 0) :: sameSize'' xa []
+                (a, 0) :: sameSize__ xa []
             ([], b::xb) ->
-                (0, b) :: sameSize'' [] xb
+                (0, b) :: sameSize__ [] xb
     in
-    MagnitudePair (sameSize'' a b)
+    MagnitudePair (sameSize__ a b)
 
 
 normalise : IntegerNotNormalised -> Integer
@@ -228,9 +228,9 @@ normalise (IntegerNotNormalised (sx, x)) =
 normaliseDigit : Int -> (Int, Digit)
 normaliseDigit d =
     if d < 0
-    then let (carry, d') = normaliseDigit (d + max_digit_value) in
-        (carry - 1, d')
-    else (d // max_digit_value, d `rem` max_digit_value)
+    then let (carry, d_) = normaliseDigit (d + max_digit_value) in
+        (carry - 1, d_)
+    else (d // max_digit_value, rem d max_digit_value)
 
 
 normaliseDigitList : List Int -> List Digit
@@ -238,13 +238,13 @@ normaliseDigitList x =
     case x of
         [] -> []
         d :: [] ->
-            let (c, d') = normaliseDigit d in
+            let (c, d_) = normaliseDigit d in
             if c /= 0
-            then [d', c]
-            else [d']
+            then [d_, c]
+            else [d_]
         d :: d2 :: xs ->
-            let (c, d') = normaliseDigit d in
-            d' :: normaliseDigitList (d2 + c :: xs)
+            let (c, d_) = normaliseDigit d in
+            d_ :: normaliseDigitList (d2 + c :: xs)
 
 
 dropWhile : (a -> Bool) -> List a -> List a
@@ -284,7 +284,7 @@ add : Integer -> Integer -> Integer
 add a b =
     let (IntegerNotNormalised (_, ma)) = toPositiveSign a
         (IntegerNotNormalised (_, mb)) = toPositiveSign b
-        (MagnitudePair (p)) = sameSize' ma mb
+        (MagnitudePair (p)) = sameSize_ ma mb
         added = List.map (\(x, y) -> x+y) p
     in
     normalise (IntegerNotNormalised (Positive, MagnitudeNotNormalised added))
@@ -333,7 +333,7 @@ mul_magnitudes (Magnitude m1) (Magnitude m2) =
                 (Magnitude rest) = mul_magnitudes (Magnitude mx) (Magnitude m2)
                 i1 = (Integer (Positive, accum))
                 i2 = (Integer (Positive, (Magnitude (0 :: rest))))
-                (Integer (_, result)) = i1 `add` i2
+                (Integer (_, result)) = add i1 i2
             in
             result
                 
@@ -497,7 +497,7 @@ pad_digits : Int -> Integer
 pad_digits n =
     if n == 0
     then fromInt 1
-    else (pad_digits (n-1)) `mul` (fromInt max_digit_value)
+    else mul (pad_digits (n-1)) (fromInt max_digit_value)
 
 
 divmod_digit : Integer -> List Integer -> Integer -> Integer -> (Integer, Integer)
@@ -506,30 +506,30 @@ divmod_digit padding to_test a b =
         [] ->
             (fromInt 0, a)
         x :: xs ->
-            let candidate = x `mul` b `mul` padding
-                (newdiv, newmod) = if candidate `lte` a
-                                   then (x `mul` padding, a `sub`candidate)
+            let candidate = x |> mul b |> mul padding
+                (newdiv, newmod) = if lte candidate a
+                                   then (mul x padding, sub a candidate)
                                    else (fromInt 0, a)
                 (restdiv, restmod) = divmod_digit padding xs newmod b
             in
-            (newdiv `add` restdiv, restmod)
+            (add newdiv restdiv, restmod)
 
 
-divmod' : Int -> Integer -> Integer -> (Integer, Integer)
-divmod' n a b =
+divmod_ : Int -> Integer -> Integer -> (Integer, Integer)
+divmod_ n a b =
     if n == 0
     then divmod_digit (pad_digits n) dividers a b
     else
         let (cdiv, cmod) = divmod_digit (pad_digits n) dividers a b
-            (rdiv, rmod) = divmod' (n-1) cmod b
+            (rdiv, rmod) = divmod_ (n-1) cmod b
         in
-            (cdiv `add` rdiv, rmod)
+            (add cdiv rdiv, rmod)
 
 
 {-| Division and modulus -}
 divmod : Integer -> Integer -> Maybe (Integer, Integer)
 divmod a b =
-    if b `eq` zero
+    if eq b zero
     then Nothing
     else
         let (Integer (s1, Magnitude m1)) = a
@@ -540,7 +540,7 @@ divmod a b =
                         (Positive, Positive) -> Positive
                         (Negative, Negative) -> Positive
                         _ -> Negative
-            (Integer (_, d), Integer (_, m)) = divmod' l (abs a) (abs b)
+            (Integer (_, d), Integer (_, m)) = divmod_ l (abs a) (abs b)
         in
         Just (Integer (sign, d), Integer (s1, m))
 
